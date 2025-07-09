@@ -7,57 +7,58 @@ const supabase = createClient(
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ success: false, message: 'فقط POST مجاز است' });
+    return res.status(405).json({ success: false, message: 'فقط POST مجازه.' });
   }
 
   try {
-    const data = req.body || {};
-    console.log('دیتای دریافتی:', data);
-
-    if (!data.name || !data.phone) {
-      return res.status(400).json({ success: false, message: 'اطلاعات ناقصه' });
-    }
+    const payload = req.body;
 
     // ایجاد مشتری
     const { data: customer, error: customerError } = await supabase
       .from('customers')
       .insert([{
-        name: data.name,
-        phone: data.phone,
-        address: data.address,
-        notes: data.customerNotes || '',
-        visitor_id: data.visitorId
+        name: payload.name,
+        address: payload.address,
+        phone: payload.phone,
+        visitor_id: payload.visitorId,
+        notes: payload.customerNotes || '',
       }])
       .select()
       .single();
 
     if (customerError) throw customerError;
 
-    // ایجاد سفارش
-    if (data.products && data.price) {
-      const { error: orderError } = await supabase
-        .from('orders')
+    // ایجاد فاکتور (در صورت وجود محصول)
+    if (payload.products && payload.price) {
+      const { error: invoiceError } = await supabase
+        .from('invoices')
         .insert([{
           customer_id: customer.id,
-          products: JSON.stringify(data.products),
-          price: data.price,
-          visitor_id: data.visitorId,
-          notes: data.orderNotes || ''
+          products: JSON.stringify(payload.products),
+          price: payload.price,
+          visitor_id: payload.visitorId,
+          date: new Date().toISOString(),
+          notes: payload.orderNotes || ''
         }]);
 
-      if (orderError) throw orderError;
-    }
+      if (invoiceError) throw invoiceError;
 
-    res.status(200).json({
-      success: true,
-      message: 'ثبت موفق ✅',
-      customerId: customer.id
-    });
-  } catch (err) {
-    console.error('⚠️ خطا:', err.message);
-    res.status(500).json({
+      return res.status(200).json({
+        success: true,
+        message: 'سفارش ثبت شد!',
+        customerId: customer.id
+      });
+    } else {
+      return res.status(200).json({
+        success: true,
+        message: 'مشتری بدون سفارش ثبت شد!',
+        customerId: customer.id
+      });
+    }
+  } catch (error) {
+    return res.status(500).json({
       success: false,
-      message: 'خطا: ' + err.message
+      message: 'خطا: ' + error.message
     });
   }
 }
