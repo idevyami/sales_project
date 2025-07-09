@@ -1,64 +1,59 @@
+// api/index.js
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY
-)
+const supabaseUrl = process.env.SUPABASE_URL
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY
+const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' })
-  }
+  try {
+    // درخواست فقط باید POST باشه
+    if (req.method !== 'POST') {
+      return res.status(405).json({ success: false, message: 'Only POST method allowed' })
+    }
 
-  const payload = req.body
+    const { name, phone, address, visitorId, products, price, notes } = req.body || {}
 
-  // ثبت مشتری
-  const { data: customer, error: customerError } = await supabase
-    .from('customers')
-    .insert([{
-      name: payload.name,
-      address: payload.address,
-      phone: payload.phone,
-      visitorId: payload.visitorId,
-      notes: payload.customerNotes || ''
-    }])
-    .select()
-    .single()
+    // بررسی داده‌های ضروری
+    if (!name || !phone || !products || !price) {
+      return res.status(400).json({ success: false, message: 'Missing required fields' })
+    }
 
-  if (customerError) {
-    return res.status(500).json({ error: 'خطا در ذخیره مشتری', detail: customerError.message })
-  }
+    // اضافه‌کردن مشتری
+    const { data: customer, error: customerError } = await supabase
+      .from('customers')
+      .insert([{ name, phone, address, visitor_id: visitorId, notes }])
+      .select()
+      .single()
 
-  // اگر سفارش هم وجود داره
-  if (payload.products && payload.price) {
-    const { data: invoice, error: invoiceError } = await supabase
-      .from('invoices')
+    if (customerError) throw customerError
+
+    // اضافه‌کردن سفارش
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
       .insert([{
         customer_id: customer.id,
-        products: payload.products,
-        price: payload.price,
-        visitorId: payload.visitorId,
-        date: new Date().toISOString(),
-        notes: payload.orderNotes || ''
+        products,
+        price,
+        notes,
+        visitor_id: visitorId,
+        created_at: new Date().toISOString()
       }])
       .select()
       .single()
 
-    if (invoiceError) {
-      return res.status(500).json({ error: 'خطا در ثبت سفارش', detail: invoiceError.message })
-    }
+    if (orderError) throw orderError
 
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
-      message: 'سفارش ثبت شد!',
+      message: 'Order successfully registered',
       customer,
-      invoice
+      order
+    })
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: 'Server error: ' + err.message
     })
   }
-
-  return res.status(200).json({
-    success: true,
-    message: 'مشتری بدون سفارش ثبت شد!',
-    customer
-  })
 }
