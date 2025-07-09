@@ -4,13 +4,9 @@
   "type": "module",
   "main": "api/index.js",
   "scripts": {
-    "dev": "vercel dev",
     "start": "node api/index.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.6"
-  },
-  "engines": {
-    "node": "18.x"
   }
 }
