@@ -4,7 +4,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "node api/register-order.js"
+    "start": "node api/index.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.6"
