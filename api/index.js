@@ -1,74 +1,63 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-)
+  process.env.SUPABASE_KEY
+);
 
 export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ success: false, message: 'فقط POST مجاز است' });
+  }
+
   try {
-    const body = req.method === 'POST'
-      ? JSON.parse(req.body || '{}')
-      : {}
+    const data = req.body || {};
+    console.log('دیتای دریافتی:', data);
 
-    const {
-      name,
-      phone,
-      address,
-      visitorId,
-      customerNotes,
-      products,
-      price,
-      orderNotes
-    } = body
-
-    if (!name || !phone) {
-      return res.status(400).json({
-        success: false,
-        message: 'نام و شماره تماس الزامی هستند.'
-      })
+    if (!data.name || !data.phone) {
+      return res.status(400).json({ success: false, message: 'اطلاعات ناقصه' });
     }
 
-    // ثبت مشتری
+    // ایجاد مشتری
     const { data: customer, error: customerError } = await supabase
       .from('customers')
       .insert([{
-        name,
-        phone,
-        address,
-        visitorId,
-        notes: customerNotes || ''
+        name: data.name,
+        phone: data.phone,
+        address: data.address,
+        notes: data.customerNotes || '',
+        visitor_id: data.visitorId
       }])
       .select()
-      .single()
+      .single();
 
-    if (customerError) throw customerError
+    if (customerError) throw customerError;
 
-    // اگر سفارش ثبت شده
-    if (products && price) {
-      const { error: invoiceError } = await supabase
-        .from('invoices')
+    // ایجاد سفارش
+    if (data.products && data.price) {
+      const { error: orderError } = await supabase
+        .from('orders')
         .insert([{
           customer_id: customer.id,
-          visitorId,
-          products: JSON.stringify(products),
-          price,
-          date: new Date().toISOString(),
-          notes: orderNotes || ''
-        }])
+          products: JSON.stringify(data.products),
+          price: data.price,
+          visitor_id: data.visitorId,
+          notes: data.orderNotes || ''
+        }]);
 
-      if (invoiceError) throw invoiceError
+      if (orderError) throw orderError;
     }
 
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
-      message: 'مشتری و سفارش با موفقیت ثبت شدند.',
+      message: 'ثبت موفق ✅',
       customerId: customer.id
-    })
+    });
   } catch (err) {
-    return res.status(500).json({
+    console.error('⚠️ خطا:', err.message);
+    res.status(500).json({
       success: false,
       message: 'خطا: ' + err.message
-    })
+    });
   }
 }
