@@ -1,59 +1,66 @@
-// api/index.js
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.SUPABASE_URL
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY
-const supabase = createClient(supabaseUrl, supabaseAnonKey)
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_API_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ success: false, message: 'فقط POST مجاز است' });
+  }
+
   try {
-    // درخواست فقط باید POST باشه
-    if (req.method !== 'POST') {
-      return res.status(405).json({ success: false, message: 'Only POST method allowed' })
+    const data = req.body;
+
+    // ساخت یا ثبت مشتری
+    let customerId = data.customerId;
+    if (!customerId) {
+      const { data: customer, error } = await supabase
+        .from('customers')
+        .insert({
+          name: data.name,
+          address: data.address,
+          phone: data.phone,
+          visitor_id: data.visitorId,
+          notes: data.customerNotes || ''
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      customerId = customer.id;
     }
 
-    const { name, phone, address, visitorId, products, price, notes } = req.body || {}
+    // ثبت سفارش
+    if (data.products && data.price) {
+      const { error: orderError, data: orderData } = await supabase
+        .from('orders')
+        .insert({
+          customer_id: customerId,
+          products: JSON.stringify(data.products),
+          price: data.price,
+          visitor_id: data.visitorId,
+          notes: data.orderNotes || '',
+          created_at: new Date().toISOString()
+        });
 
-    // بررسی داده‌های ضروری
-    if (!name || !phone || !products || !price) {
-      return res.status(400).json({ success: false, message: 'Missing required fields' })
+      if (orderError) throw orderError;
+
+      return res.status(200).json({
+        success: true,
+        message: 'سفارش ثبت شد ✅',
+        customerId: customerId
+      });
     }
 
-    // اضافه‌کردن مشتری
-    const { data: customer, error: customerError } = await supabase
-      .from('customers')
-      .insert([{ name, phone, address, visitor_id: visitorId, notes }])
-      .select()
-      .single()
-
-    if (customerError) throw customerError
-
-    // اضافه‌کردن سفارش
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .insert([{
-        customer_id: customer.id,
-        products,
-        price,
-        notes,
-        visitor_id: visitorId,
-        created_at: new Date().toISOString()
-      }])
-      .select()
-      .single()
-
-    if (orderError) throw orderError
-
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: 'Order successfully registered',
-      customer,
-      order
-    })
+      message: 'مشتری بدون سفارش ثبت شد!',
+      customerId: customerId
+    });
+
   } catch (err) {
-    res.status(500).json({
-      success: false,
-      message: 'Server error: ' + err.message
-    })
+    console.error('[ERROR]', err.message || err);
+    return res.status(500).json({ success: false, message: err.message || 'خطای ناشناخته' });
   }
 }
