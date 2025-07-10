@@ -1,30 +1,36 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = 'https://toinqwlrdadbflrccefg.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRvaW5xd2xyZGFkYmZscmNjZWZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE5NzQ0NjksImV4cCI6MjA2NzU1MDQ2OX0.GSqWWlOGvAVFfeszf_M8-a9Rb6iJxedwGvQtr6jWlq4';
-
-const supabase = createClient(supabaseUrl, supabaseKey);
-
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ success: false, message: 'Only POST requests are allowed' });
-  }
-
   try {
-    const { name, phone } = req.body;
+    const response = await fetch('https://webhook.site/4c231f3f-2e42-4ce0-924e-4eb52a591928', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        message: '✅ درخواست تست از Vercel با موفقیت ارسال شد!',
+        timestamp: new Date().toISOString(),
+        device: 'mobile',
+        source: 'sales-project-v16'
+      })
+    });
 
-    if (!name || !phone) {
-      return res.status(400).json({ success: false, message: 'name و phone الزامی هستند' });
+    // اگر وبهوک موفق بود
+    if (response.ok) {
+      res.status(200).json({
+        success: true,
+        message: 'ارسال موفق به Webhook 🎉'
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: 'وبهوک پاسخ موفق نداد ❌',
+        status: response.status
+      });
     }
-
-    const { data, error } = await supabase.from('customers').insert([
-      { name, phone }
-    ]);
-
-    if (error) throw error;
-
-    res.status(200).json({ success: true, message: 'مشتری با موفقیت ثبت شد', data });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'خطا: ' + err.message });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'خطا در ارسال به Webhook 🚨',
+      error: error.message
+    });
   }
 }
